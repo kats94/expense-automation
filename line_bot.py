@@ -42,8 +42,8 @@ def _handle_webhook_async(body, signature):
         logger.error(f"Error handling message: {e}")
 
 
-@app.route("/callback", methods=["POST"])
-def callback():
+@app.route("/webhook", methods=["POST"])
+def webhook():
     """LINE Webhook のエンドポイント"""
     signature = request.headers.get("X-Line-Signature", "")
     body = request.get_data(as_text=True)
@@ -51,7 +51,7 @@ def callback():
     thread = threading.Thread(target=_handle_webhook_async, args=(body, signature), daemon=True)
     thread.start()
 
-    return "OK"
+    return "OK", 200
 
 
 @handler.add(MessageEvent, message=TextMessage)
