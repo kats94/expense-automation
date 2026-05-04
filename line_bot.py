@@ -16,7 +16,7 @@ from linebot.models import (
 
 from google_auth import load_config
 from line_transit import get_transit_fare, record_transit_expense, parse_route
-from line_receipt import process_receipt_image
+from line_receipt import process_receipt_image, record_receipt
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -96,6 +96,49 @@ def handle_text_message(event):
     text = event.message.text.strip()
     logger.info(f"TextMessage received from {user_id}: {text}")
 
+    # 領収書確認応答を処理
+    if text == "領収書_確認_yes":
+        logger.info(f"Receipt confirmation 'yes' from {user_id}")
+        if user_id in user_states:
+            state = user_states[user_id]
+            try:
+                amount = state.get("receipt_amount")
+                date = state.get("receipt_date")
+                shop = state.get("receipt_shop")
+                logger.debug(f"Recording receipt for {user_id}: amount={amount}, date={date}, shop={shop}")
+                record_receipt(amount, date, shop)
+                response_text = f"✅ 領収書を記録しました\n¥{amount} ({date})\n{shop}"
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response_text))
+                # 状態をクリア
+                del user_states[user_id]
+                logger.info(f"Receipt recorded and state cleared for {user_id}")
+            except Exception as e:
+                logger.error(f"Error recording receipt: {e}", exc_info=True)
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=f"領収書の記録に失敗しました: {str(e)}")
+                )
+        else:
+            logger.warning(f"No receipt state found for {user_id}")
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="領収書の情報が見つかりません。もう一度画像を送信してください。")
+            )
+        return
+
+    # 領収書確認応答「修正」の場合
+    if text == "領収書_確認_no":
+        logger.info(f"Receipt confirmation 'no' from {user_id}")
+        # 状態をクリア
+        if user_id in user_states:
+            del user_states[user_id]
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text="領収書を修正してください。もう一度画像を送信してください。")
+        )
+        return
+
+    # 交通費入力を処理
     transit_input = parse_transit_input(text)
     if transit_input:
         if len(transit_input) == 3:
@@ -156,6 +199,7 @@ def handle_image_message(event):
 
         # 確認メッセージをテンプレートで送信
         confirm_text = f"¥{amount} / {date} / {shop}\nで合っていますか？"
+        logger.info(f"Sending confirmation message to {user_id}: {confirm_text}")
 
         buttons_template = ButtonsTemplate(
             text=confirm_text,
@@ -164,10 +208,15 @@ def handle_image_message(event):
                 MessageAction(label="修正", text="領収書_確認_no"),
             ]
         )
-        line_bot_api.reply_message(
-            event.reply_token,
-            TemplateSendMessage(alt_text=confirm_text, template=buttons_template)
-        )
+        try:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TemplateSendMessage(alt_text=confirm_text, template=buttons_template)
+            )
+            logger.info(f"Confirmation message sent to {user_id}")
+        except Exception as send_error:
+            logger.error(f"Error sending confirmation message: {send_error}", exc_info=True)
+            raise
 
         # ユーザーの状態を保存
         user_states[user_id] = {
