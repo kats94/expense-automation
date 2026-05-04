@@ -102,7 +102,7 @@ def record_receipt(amount: str, date: str, shop_name: str) -> None:
     # 金額を数値に変換（カンマがあれば削除）
     amount_clean = amount.replace(",", "")
 
-    row = [date, shop_name, amount_clean, "領収書"]
+    row = [date, shop_name, amount_clean]
 
     # シート名を引用符で囲む
     sheet_range = f"'{sheet_name}'!A1"
