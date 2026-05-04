@@ -89,6 +89,35 @@ def parse_transit_input(text: str) -> tuple[str, str, int] | tuple[str, str] | N
         return route, location
 
 
+def _prompt_correction_fields(event, state):
+    prompt_text = (
+        "修正する項目を番号で入力してください（複数可、例：1 3）\n"
+        "1. 日付\n"
+        "2. 店名\n"
+        "3. 金額"
+    )
+    state["mode"] = "select_fields"
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=prompt_text))
+
+
+def _prompt_next_field(event, state):
+    pending_fields = state.get("pending_fields", [])
+    index = state.get("pending_index", 0)
+    if index >= len(pending_fields):
+        return False
+
+    field = pending_fields[index]
+    labels = {
+        "date": "日付（YYYY-MM-DD形式）を入力してください。",
+        "shop": "店名を入力してください。",
+        "amount": "金額（数字のみ）を入力してください。",
+    }
+    state["mode"] = "editing"
+    state["current_field"] = field
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=labels[field]))
+    return True
+
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text_message(event):
     """テキストメッセージの処理"""
@@ -96,7 +125,76 @@ def handle_text_message(event):
     text = event.message.text.strip()
     logger.info(f"TextMessage received from {user_id}: {text}")
 
-    # 領収書確認応答を処理
+    state = user_states.get(user_id, {})
+    mode = state.get("mode")
+
+    if mode == "select_fields":
+        logger.info(f"Receipt field selection from {user_id}: {text}")
+        field_numbers = re.findall(r"[1-3]", text)
+        if not field_numbers:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="1〜3の番号をスペース区切りで入力してください。例：1 3")
+            )
+            return
+
+        field_map = {"1": "date", "2": "shop", "3": "amount"}
+        pending_fields = [field_map[num] for num in field_numbers]
+        state["pending_fields"] = pending_fields
+        state["pending_index"] = 0
+        state["mode"] = "editing"
+        user_states[user_id] = state
+        _prompt_next_field(event, state)
+        return
+
+    if mode == "editing":
+        current_field = state.get("current_field")
+        logger.info(f"Receipt edit input for {user_id}: field={current_field}, text={text}")
+        if current_field == "date":
+            state["receipt_date"] = text
+        elif current_field == "shop":
+            state["receipt_shop"] = text
+        elif current_field == "amount":
+            amount_text = re.sub(r"[^0-9]", "", text)
+            if not amount_text:
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text="金額は数字のみで入力してください。例：2450")
+                )
+                return
+            state["receipt_amount"] = amount_text
+        else:
+            logger.warning(f"Unknown current_field for {user_id}: {current_field}")
+
+        pending_index = state.get("pending_index", 0) + 1
+        state["pending_index"] = pending_index
+        user_states[user_id] = state
+
+        if pending_index < len(state.get("pending_fields", [])):
+            _prompt_next_field(event, state)
+            return
+
+        # すべての編集が完了したら確認画面へ
+        state["mode"] = "confirm_after_edit"
+        amount = state.get("receipt_amount")
+        date = state.get("receipt_date")
+        shop = state.get("receipt_shop")
+        confirm_text = (
+            f"以下の内容で記録しますか？\n"
+            f"日付：{date}\n"
+            f"店名：{shop}\n"
+            f"金額：¥{amount}"
+        )
+        buttons_template = ButtonsTemplate(
+            text=confirm_text,
+            actions=[
+                MessageAction(label="はい", text="領収書_確認_yes"),
+                MessageAction(label="修正", text="領収書_確認_no"),
+            ]
+        )
+        line_bot_api.reply_message(event.reply_token, TemplateSendMessage(alt_text=confirm_text, template=buttons_template))
+        return
+
     if text == "領収書_確認_yes":
         logger.info(f"Receipt confirmation 'yes' from {user_id}")
         if user_id in user_states:
@@ -126,16 +224,19 @@ def handle_text_message(event):
             )
         return
 
-    # 領収書確認応答「修正」の場合
     if text == "領収書_確認_no":
         logger.info(f"Receipt confirmation 'no' from {user_id}")
-        # 状態をクリア
-        if user_id in user_states:
-            del user_states[user_id]
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text="領収書を修正してください。もう一度画像を送信してください。")
-        )
+        if user_id not in user_states:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="領収書の情報が見つかりません。もう一度画像を送信してください。")
+            )
+            return
+
+        state = user_states[user_id]
+        state["mode"] = "select_fields"
+        user_states[user_id] = state
+        _prompt_correction_fields(event, state)
         return
 
     # 交通費入力を処理
