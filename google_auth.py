@@ -16,7 +16,7 @@ def load_config():
     config = {
         "google": {
             "spreadsheet_id": os.getenv("GOOGLE_SPREADSHEET_ID"),
-            "expense_sheet_name": os.getenv("GOOGLE_EXPENSE_SHEET_NAME", "経費帳"),
+            "expense_sheet_name": os.getenv("GOOGLE_EXPENSE_SHEET_NAME", "交通費・接待交際費 まとめ"),
             "service_account_file": os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "./expense-automation-493207-678d0e3e8531.json"),
         },
         "google_maps": {
