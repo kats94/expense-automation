@@ -16,7 +16,7 @@ from linebot.models import (
 )
 
 from google_auth import load_config
-from line_transit import get_transit_fare
+from line_transit import get_transit_fare, record_transit_expense, parse_route
 from line_receipt import process_receipt_image
 
 logging.basicConfig(level=logging.INFO)
@@ -55,20 +55,36 @@ def webhook():
     return "OK", 200
 
 
-def parse_transit_input(text: str) -> tuple[str, str] | None:
-    """出発地→目的地 訪問先形式の入力を解析する"""
+def parse_transit_input(text: str) -> tuple[str, str, int] | tuple[str, str] | None:
+    """出発地→目的地 訪問先形式の入力を解析する。金額が含まれている場合は金額も返す"""
     # 全角スペースも含めて分割
-    parts = re.split(r"\s+", text.strip(), maxsplit=1)
+    parts = re.split(r"\s+", text.strip())
     if len(parts) < 2:
         return None
 
     route = parts[0].strip()
-    location = parts[1].strip()
-
     if "→" not in route:
         return None
 
-    return route, location
+    # 金額を含む場合の処理
+    fare = None
+    location = None
+
+    for part in parts[1:]:
+        # 金額を検索（数字 + 円）
+        fare_match = re.search(r"(\d+)円?", part)
+        if fare_match:
+            fare = int(fare_match.group(1))
+        elif location is None:
+            location = part.strip()
+
+    if location is None:
+        return None
+
+    if fare is not None:
+        return route, location, fare
+    else:
+        return route, location
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -79,24 +95,40 @@ def handle_text_message(event):
 
     transit_input = parse_transit_input(text)
     if transit_input:
-        route, location = transit_input
-
-        try:
-            fare, route_info = get_transit_fare(route)
-            # スプレッドシートに追加（後で実装）
-            response_text = f"¥{fare} を交通費に入力しました✅\n{route_info}"
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response_text))
-        except Exception as e:
-            logger.error(f"Error getting transit fare: {e}")
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=f"交通費の計算に失敗しました: {str(e)}")
-            )
+        if len(transit_input) == 3:
+            # 金額が含まれている場合
+            route, location, fare = transit_input
+            try:
+                origin, destination = parse_route(route)
+                record_transit_expense(origin, destination, location, fare)
+                response_text = f"¥{fare} を交通費に入力しました✅\n{route} {location}"
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response_text))
+            except Exception as e:
+                logger.error(f"Error recording transit expense: {e}")
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=f"交通費の記録に失敗しました: {str(e)}")
+                )
+        else:
+            # 金額が含まれていない場合（従来のAPI使用）
+            route, location = transit_input
+            try:
+                fare, route_info = get_transit_fare(route)
+                origin, destination = parse_route(route)
+                record_transit_expense(origin, destination, location, fare)
+                response_text = f"¥{fare} を交通費に入力しました✅\n{route_info}"
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response_text))
+            except Exception as e:
+                logger.error(f"Error getting transit fare: {e}")
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=f"交通費の計算に失敗しました: {str(e)}")
+                )
     else:
         # その他のテキストメッセージ
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="領収書を送信するか、「出発地→目的地 訪問先」の形式で交通費を入力してください。")
+            TextSendMessage(text="領収書を送信するか、「出発地→目的地 訪問先」または「出発地→目的地 金額 訪問先」の形式で交通費を入力してください。")
         )
 
 
