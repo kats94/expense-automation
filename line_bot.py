@@ -128,6 +128,47 @@ def handle_text_message(event):
     state = user_states.get(user_id, {})
     mode = state.get("mode")
 
+    if mode == "confirm_transit":
+        logger.info(f"Transit confirmation from {user_id}: {text}")
+        selected = text.strip()
+        if selected in ["1", "片道"]:
+            amount = int(state["fare"])
+            record_amount = amount
+            label = "片道"
+        elif selected in ["2", "往復"]:
+            amount = int(state["fare"]) * 2
+            record_amount = amount
+            label = "往復"
+        else:
+            reply_text = (
+                "「片道」または「往復」を入力してください。\n"
+                "1. 片道\n"
+                "2. 往復"
+            )
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+            return
+
+        try:
+            record_transit_expense(
+                state["origin"],
+                state["destination"],
+                state["location"],
+                record_amount,
+            )
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"¥{record_amount}（{label}）を交通費（電車）まとめに入力しました✅")
+            )
+        except Exception as e:
+            logger.error(f"Error recording transit expense: {e}", exc_info=True)
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"交通費の記録に失敗しました: {str(e)}")
+            )
+        finally:
+            user_states.pop(user_id, None)
+        return
+
     if mode == "select_fields":
         logger.info(f"Receipt field selection from {user_id}: {text}")
         field_numbers = re.findall(r"[1-3]", text)
@@ -247,14 +288,32 @@ def handle_text_message(event):
             route, location, fare = transit_input
             try:
                 origin, destination = parse_route(route)
-                record_transit_expense(origin, destination, location, fare)
-                response_text = f"¥{fare} を交通費に入力しました✅\n{route} {location}"
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response_text))
+                user_states[user_id] = {
+                    "mode": "confirm_transit",
+                    "origin": origin,
+                    "destination": destination,
+                    "location": location,
+                    "fare": fare,
+                }
+                total_fare = fare * 2
+                confirm_text = (
+                    f"片道¥{fare}で記録しますか？それとも往復（¥{total_fare}）ですか？\n"
+                    "1. 片道\n"
+                    "2. 往復"
+                )
+                buttons_template = ButtonsTemplate(
+                    text=confirm_text,
+                    actions=[
+                        MessageAction(label="片道", text="片道"),
+                        MessageAction(label="往復", text="往復"),
+                    ]
+                )
+                line_bot_api.reply_message(event.reply_token, TemplateSendMessage(alt_text=confirm_text, template=buttons_template))
             except Exception as e:
-                logger.error(f"Error recording transit expense: {e}")
+                logger.error(f"Error preparing transit confirmation: {e}")
                 line_bot_api.reply_message(
                     event.reply_token,
-                    TextSendMessage(text=f"交通費の記録に失敗しました: {str(e)}")
+                    TextSendMessage(text=f"交通費の確認に失敗しました: {str(e)}")
                 )
         else:
             # 金額が含まれていない場合（従来のAPI使用）

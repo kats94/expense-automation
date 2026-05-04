@@ -102,7 +102,7 @@ def record_transit_expense(origin: str, destination: str, location: str, fare: i
     """
     交通費をスプレッドシートに記録
     """
-    spreadsheet_id, sheet_name = get_spreadsheet_config()
+    spreadsheet_id, sheet_name = get_spreadsheet_config("transit_sheet_name")
     service = get_sheets_service()
 
     today = datetime.now().strftime("%Y-%m-%d")

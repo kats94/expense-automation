@@ -17,6 +17,7 @@ def load_config():
         "google": {
             "spreadsheet_id": os.getenv("GOOGLE_SPREADSHEET_ID"),
             "expense_sheet_name": os.getenv("GOOGLE_EXPENSE_SHEET_NAME", "交際費（領収書系）まとめ"),
+            "transit_sheet_name": os.getenv("GOOGLE_TRANSIT_SHEET_NAME", "交通費（電車） まとめ"),
             "service_account_file": os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "./expense-automation-493207-678d0e3e8531.json"),
         },
         "google_maps": {
@@ -105,11 +106,11 @@ def get_drive_service():
     return build("drive", "v3", credentials=credentials)
 
 
-def get_spreadsheet_config():
+def get_spreadsheet_config(sheet_name_key: str = "expense_sheet_name"):
     config = load_config()
     google_config = config.get("google", {})
     spreadsheet_id = google_config.get("spreadsheet_id")
-    sheet_name = google_config.get("expense_sheet_name", "経費")
+    sheet_name = google_config.get(sheet_name_key, "経費")
 
     if not spreadsheet_id:
         raise ValueError("GOOGLE_SPREADSHEET_ID 環境変数を設定してください。")
