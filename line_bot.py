@@ -18,7 +18,10 @@ from google_auth import load_config
 from line_transit import get_transit_fare, record_transit_expense, parse_route
 from line_receipt import process_receipt_image
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -39,13 +42,16 @@ def webhook():
     signature = request.headers.get("X-Line-Signature", "")
     body = request.get_data(as_text=True)
 
+    logger.info(f"Received webhook request. Signature: {signature[:20]}...")
+    logger.debug(f"Webhook body: {body[:200]}")
+
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
         logger.warning("Invalid signature received.")
         abort(400)
     except Exception as e:
-        logger.error(f"Error handling message: {e}")
+        logger.error(f"Error handling message: {e}", exc_info=True)
         abort(500)
 
     return "OK", 200
@@ -88,6 +94,7 @@ def handle_text_message(event):
     """テキストメッセージの処理"""
     user_id = event.source.user_id
     text = event.message.text.strip()
+    logger.info(f"TextMessage received from {user_id}: {text}")
 
     transit_input = parse_transit_input(text)
     if transit_input:
@@ -133,14 +140,19 @@ def handle_image_message(event):
     """画像メッセージ（領収書）の処理"""
     user_id = event.source.user_id
     message_id = event.message.id
+    logger.info(f"ImageMessage received from {user_id}. Message ID: {message_id}")
 
     try:
+        logger.debug(f"Downloading image content for message {message_id}")
         # 画像をダウンロード
         message_content = line_bot_api.get_message_content(message_id)
         image_data = message_content.content
+        logger.debug(f"Image downloaded successfully. Size: {len(image_data)} bytes")
 
         # Claude Vision API で推定
+        logger.debug("Processing image with Claude Vision API")
         amount, date, shop = process_receipt_image(image_data)
+        logger.info(f"Receipt processed: amount={amount}, date={date}, shop={shop}")
 
         # 確認メッセージをテンプレートで送信
         confirm_text = f"¥{amount} / {date} / {shop}\nで合っていますか？"
@@ -163,8 +175,9 @@ def handle_image_message(event):
             "receipt_date": date,
             "receipt_shop": shop,
         }
+        logger.info(f"User state saved for {user_id}")
     except Exception as e:
-        logger.error(f"Error processing receipt image: {e}")
+        logger.error(f"Error processing receipt image: {e}", exc_info=True)
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=f"領収書の読み取りに失敗しました: {str(e)}")
