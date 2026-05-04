@@ -3,7 +3,6 @@
 import logging
 import os
 import re
-import threading
 from functools import wraps
 
 from flask import Flask, request, abort
@@ -34,23 +33,20 @@ handler = WebhookHandler(line_config.get("channel_secret"))
 user_states = {}
 
 
-def _handle_webhook_async(body, signature):
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        logger.warning("Invalid signature received.")
-    except Exception as e:
-        logger.error(f"Error handling message: {e}")
-
-
 @app.route("/webhook", methods=["POST"])
 def webhook():
     """LINE Webhook のエンドポイント"""
     signature = request.headers.get("X-Line-Signature", "")
     body = request.get_data(as_text=True)
 
-    thread = threading.Thread(target=_handle_webhook_async, args=(body, signature), daemon=True)
-    thread.start()
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        logger.warning("Invalid signature received.")
+        abort(400)
+    except Exception as e:
+        logger.error(f"Error handling message: {e}")
+        abort(500)
 
     return "OK", 200
 
