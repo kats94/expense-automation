@@ -48,7 +48,7 @@ def get_transit_fare(route_text: str) -> tuple[int, str]:
     google_maps_api_key = config.get("google_maps", {}).get("api_key")
     
     if not google_maps_api_key:
-        raise ValueError("config.json に google_maps.api_key を設定してください")
+        raise ValueError("GOOGLE_MAPS_API_KEY 環境変数を設定してください")
 
     gmaps = googlemaps.Client(key=google_maps_api_key)
 

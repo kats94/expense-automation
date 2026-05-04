@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import threading
 from functools import wraps
 
@@ -54,17 +55,31 @@ def webhook():
     return "OK", 200
 
 
+def parse_transit_input(text: str) -> tuple[str, str] | None:
+    """出発地→目的地 訪問先形式の入力を解析する"""
+    # 全角スペースも含めて分割
+    parts = re.split(r"\s+", text.strip(), maxsplit=1)
+    if len(parts) < 2:
+        return None
+
+    route = parts[0].strip()
+    location = parts[1].strip()
+
+    if "→" not in route:
+        return None
+
+    return route, location
+
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_text_message(event):
     """テキストメッセージの処理"""
     user_id = event.source.user_id
     text = event.message.text.strip()
 
-    # 交通費入力：「出発地→目的地 訪問先」形式
-    if "→" in text and " " in text:
-        parts = text.split(" ", 1)
-        route = parts[0]  # 出発地→目的地
-        location = parts[1]  # 訪問先
+    transit_input = parse_transit_input(text)
+    if transit_input:
+        route, location = transit_input
 
         try:
             fare, route_info = get_transit_fare(route)
