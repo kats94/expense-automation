@@ -59,11 +59,30 @@ def load_config():
 
 
 def get_service_account_credentials():
+    """
+    Google Sheets API の認証情報を取得
+    環境変数 GOOGLE_SERVICE_ACCOUNT_JSON から JSON 文字列を読み込むか、
+    ローカルのサービスアカウントファイルから読み込む
+    """
+    # 環境変数から JSON 文字列を取得
+    service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    
+    if service_account_json:
+        try:
+            # JSON 文字列をパース
+            credentials_dict = json.loads(service_account_json)
+            return service_account.Credentials.from_service_account_info(
+                credentials_dict, scopes=SCOPES
+            )
+        except json.JSONDecodeError:
+            raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON は有効な JSON 形式である必要があります")
+    
+    # フォールバック: ローカルファイルから読み込む
     config = load_config()
     service_account_file = config["google"].get("service_account_file")
     
     if not service_account_file:
-        raise ValueError("GOOGLE_SERVICE_ACCOUNT_FILE 環境変数を設定してください。")
+        raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON 環境変数または service_account_file を設定してください。")
 
     credentials_path = Path(service_account_file)
     if not credentials_path.exists():
