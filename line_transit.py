@@ -9,7 +9,7 @@ import requests
 
 from google_auth import load_config, get_sheets_service, get_spreadsheet_config
 
-TRANSIT_SEARCH_ENDPOINT = "https://transit.yahooapis.jp/TransitSearch/V1/search"
+TRANSIT_SEARCH_ENDPOINT = "https://map.yahooapis.jp/transit/V1/search"
 
 
 def parse_route(route_text: str) -> tuple[str, str]:
