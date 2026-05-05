@@ -131,6 +131,9 @@ def main():
         },
     ]
 
+    target_month = 4
+    target_year = 2026
+
     for invoice in items:
         try:
             print(f"処理開始: {invoice['item_name']}")
@@ -142,6 +145,8 @@ def main():
                 invoice["currency"],
                 exchange_api_key,
                 exchange_rate_12th=exchange_rate_12th,
+                target_month=target_month,
+                target_year=target_year,
             )
             print(f"処理完了: {invoice['item_name']}")
         except Exception as exc:
@@ -258,9 +263,19 @@ def process_invoice(
     currency: str,
     exchange_api_key: str,
     exchange_rate_12th: float,
+    target_month: int = 4,
+    target_year: int | None = None,
 ) -> None:
+    if target_year is None:
+        target_year = datetime.now().year
+    # 対象月の開始日・翌月1日でフィルタ（当月メールのみ取得）
+    after_date = f"{target_year}/{target_month:02d}/01"
+    if target_month == 12:
+        before_date = f"{target_year + 1}/01/01"
+    else:
+        before_date = f"{target_year}/{target_month + 1:02d}/01"
     gmail_service = get_gmail_service()
-    query = f"from:{sender}".strip()
+    query = f"from:{sender} after:{after_date} before:{before_date}"
     messages = search_messages(gmail_service, query)
     if not messages:
         print(f"未検出: {item_name} の請求メール ({sender})")
