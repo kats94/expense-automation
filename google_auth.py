@@ -111,7 +111,15 @@ def get_spreadsheet_config(sheet_name_key: str = "expense_sheet_name"):
     config = load_config()
     google_config = config.get("google", {})
     spreadsheet_id = google_config.get("spreadsheet_id")
-    sheet_name = google_config.get(sheet_name_key, "経費")
+    
+    # デフォルト値はキーによって異なる
+    default_sheet_names = {
+        "expense_sheet_name": "交際費（領収書系）まとめ",
+        "transit_sheet_name": "交通費（電車） まとめ",
+        "fixed_cost_sheet_name": "FY26 会計表",
+    }
+    default_sheet = default_sheet_names.get(sheet_name_key, "経費")
+    sheet_name = google_config.get(sheet_name_key, default_sheet)
 
     if not spreadsheet_id:
         raise ValueError("GOOGLE_SPREADSHEET_ID 環境変数を設定してください。")

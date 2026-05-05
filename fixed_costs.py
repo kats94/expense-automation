@@ -134,6 +134,7 @@ def main():
 
     for invoice in items:
         try:
+            print(f"処理開始: {invoice['item_name']}")
             process_invoice(
                 spreadsheet_id,
                 sheet_name,
@@ -143,8 +144,11 @@ def main():
                 exchange_api_key,
                 exchange_rate_12th=exchange_rate_12th,
             )
+            print(f"処理完了: {invoice['item_name']}")
         except Exception as exc:
             print(f"{invoice['item_name']} の処理中にエラーが発生しました: {exc}")
+
+    print("メール自動取得処理を完了しました")
 
     fixed_amount_items = [
         {"name": "代理店交流会", "amount": "5500"},
@@ -226,14 +230,22 @@ from gmail_auth import get_gmail_service
 
 
 def get_message_text(service, message_id: str) -> str:
-    message = service.users().messages().get(userId="me", id=message_id, format="full").execute()
-    payload = message.get("payload", {})
-    return normalize_text(extract_text_from_payload(payload))
+    try:
+        message = service.users().messages().get(userId="me", id=message_id, format="full").execute()
+        payload = message.get("payload", {})
+        return normalize_text(extract_text_from_payload(payload))
+    except Exception as e:
+        print(f"メール本文取得エラー: {e}")
+        return ""
 
 
 def search_messages(service, query: str, max_results: int = 1):
-    response = service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
-    return response.get("messages", [])
+    try:
+        response = service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
+        return response.get("messages", [])
+    except Exception as e:
+        print(f"メール検索エラー: {e}")
+        return []
 
 
 def process_invoice(
