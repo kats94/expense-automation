@@ -59,7 +59,6 @@ def main():
 
         # ChatGPT: $22 固定
         chatgpt_amount = str(round(22 * rate))
-        chatgpt_memo = f"USD 22 @ {rate:.6f} = JPY {chatgpt_amount}"
         values = load_sheet_data(spreadsheet_id, sheet_name)
         update_fixed_cost_item(
             spreadsheet_id,
@@ -67,10 +66,9 @@ def main():
             values,
             "ChatGPT",
             chatgpt_amount,
-            chatgpt_memo,
             target_month=month,
         )
-        print(f"ChatGPT を {chatgpt_amount} 円で更新しました。({chatgpt_memo})")
+        print(f"ChatGPT を {chatgpt_amount} 円で更新しました。(USD 22 × {rate:.4f})")
 
     print("\nQ1 バックフィル完了。")
 

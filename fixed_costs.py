@@ -80,12 +80,10 @@ def load_sheet_data(spreadsheet_id: str, sheet_name: str) -> list[list[str]]:
     return result.get("values", [])
 
 
-def build_row_for_item(item_name: str, month_index: int, amount: str, memo: str | None = None) -> list[str]:
+def build_row_for_item(item_name: str, month_index: int, amount: str) -> list[str]:
     row = [""] * 14
     row[0] = item_name
     row[month_index] = amount
-    if memo:
-        row[13] = memo
     return row
 
 
@@ -93,12 +91,9 @@ def update_fixed_cost_item(spreadsheet_id: str, sheet_name: str, values: list[li
     row_index = find_row_by_item(values, item_name)
     column = month_column_letter(target_month)
     if row_index:
-        updates = [{"range": f"'{sheet_name}'!{column}{row_index}", "values": [amount]}]
-        if memo:
-            updates.append({"range": f"'{sheet_name}'!N{row_index}", "values": [memo]})
-        update_sheet_values(spreadsheet_id, updates)
+        update_sheet_values(spreadsheet_id, [{"range": f"'{sheet_name}'!{column}{row_index}", "values": [amount]}])
     else:
-        row = build_row_for_item(item_name, target_month, amount, memo)
+        row = build_row_for_item(item_name, target_month, amount)
         append_new_row(spreadsheet_id, sheet_name, row)
 
 
@@ -178,19 +173,16 @@ def main():
         )
 
     chatgpt_amount = str(round(22 * exchange_rate_12th))
-    chatgpt_memo = f"USD 22 @ {exchange_rate_12th:.6f} = JPY {chatgpt_amount}"
     update_fixed_cost_item(
         spreadsheet_id,
         sheet_name,
         values,
         "ChatGPT",
         chatgpt_amount,
-        chatgpt_memo,
         target_month=target_month,
     )
 
-    print("固定費の自動入力が完了しました。")
-    print(f"ChatGPT の換算レート: {exchange_rate_12th:.6f}")
+    print(f"固定費の自動入力が完了しました。(ChatGPT: USD 22 × {exchange_rate_12th:.4f} = {chatgpt_amount}円)")
 
 
 def parse_amount_jpy(text: str) -> float | None:
@@ -308,8 +300,8 @@ def process_invoice(
         amount_value = str(int(jpy_amount))
         memo = f"JPY {int(jpy_amount)}"
 
-    update_fixed_cost_item(spreadsheet_id, sheet_name, values=load_sheet_data(spreadsheet_id, sheet_name), item_name=item_name, amount=amount_value, memo=memo, target_month=target_month)
-    print(f"{item_name} を {amount_value} 円で更新しました。({target_year}/{target_month:02d}, {memo})")
+    update_fixed_cost_item(spreadsheet_id, sheet_name, values=load_sheet_data(spreadsheet_id, sheet_name), item_name=item_name, amount=amount_value, target_month=target_month)
+    print(f"{item_name} を {amount_value} 円で更新しました。({target_year}/{target_month:02d})")
 
 
 if __name__ == "__main__":
