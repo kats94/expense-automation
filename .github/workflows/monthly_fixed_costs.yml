@@ -5,8 +5,19 @@ on:
   # run_monthly_fixed_costs.py 内で当日が月末かチェックして非月末日はスキップ
   schedule:
     - cron: "59 14 28-31 * *"
-  # 手動実行（テスト用）
+
+  # 手動実行: target_month を指定するとその月を処理（月末チェックをスキップ）
+  # 省略した場合は月末チェックを適用（月末以外はスキップ）
   workflow_dispatch:
+    inputs:
+      target_month:
+        description: "対象月 (1-12)。省略時は月末チェックを適用して当月を処理。"
+        required: false
+        default: ""
+      target_year:
+        description: "対象年 (例: 2026)。省略時は当年。"
+        required: false
+        default: ""
 
 jobs:
   run-fixed-costs:
@@ -33,4 +44,12 @@ jobs:
           EXCHANGERATE_API_KEY: ${{ secrets.EXCHANGERATE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GMAIL_TOKEN_JSON: ${{ secrets.GMAIL_TOKEN_JSON }}
-        run: python run_monthly_fixed_costs.py
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.target_month }}" ]; then
+            ARGS="--month ${{ inputs.target_month }}"
+          fi
+          if [ -n "${{ inputs.target_year }}" ]; then
+            ARGS="$ARGS --year ${{ inputs.target_year }}"
+          fi
+          python run_monthly_fixed_costs.py $ARGS

@@ -97,7 +97,13 @@ def update_fixed_cost_item(spreadsheet_id: str, sheet_name: str, values: list[li
         append_new_row(spreadsheet_id, sheet_name, row)
 
 
-def main():
+def main(target_month: int | None = None, target_year: int | None = None) -> None:
+    now = datetime.now()
+    target_month = target_month or now.month
+    target_year = target_year or now.year
+
+    print(f"処理対象: {target_year}年{target_month}月")
+
     config = load_config()
     spreadsheet_id, sheet_name = get_spreadsheet_config("fixed_cost_sheet_name")
     exchange_api_key = config["exchange_rate_api"]["api_key"]
@@ -105,32 +111,28 @@ def main():
     values = load_sheet_data(spreadsheet_id, sheet_name)
 
     # USD建て請求書の為替は請求日（毎月12日）のレートを優先
-    exchange_rate_12th = get_12th_exchange_rate(exchange_api_key, base="USD", target="JPY")
+    exchange_rate_12th = get_12th_exchange_rate(
+        exchange_api_key, base="USD", target="JPY",
+        year=target_year, month=target_month,
+    )
 
     items = [
         {
             "sender": "invoice+statements+acct_1Q2SePHy7UpDvrVi@stripe.com",
             "item_name": "Genspark",
             "currency": "USD",
-            "query_suffix": "",
         },
         {
             "sender": "invoice+statements@mail.anthropic.com",
             "item_name": "Claude",
             "currency": "USD",
-            "query_suffix": "",
         },
         {
             "sender": "server@onamae-support.jp",
             "item_name": "メールサーバー費用",
             "currency": "JPY",
-            "query_suffix": "",
         },
     ]
-
-    now = datetime.now()
-    target_month = now.month
-    target_year = now.year
 
     for invoice in items:
         try:
@@ -261,11 +263,9 @@ def process_invoice(
     currency: str,
     exchange_api_key: str,
     exchange_rate_12th: float,
-    target_month: int = 4,
-    target_year: int | None = None,
+    target_month: int,
+    target_year: int,
 ) -> None:
-    if target_year is None:
-        target_year = datetime.now().year
     # 対象月の開始日・翌月1日でフィルタ（当月メールのみ取得）
     after_date = f"{target_year}/{target_month:02d}/01"
     if target_month == 12:
@@ -274,12 +274,19 @@ def process_invoice(
         before_date = f"{target_year}/{target_month + 1:02d}/01"
     gmail_service = get_gmail_service()
     query = f"from:{sender} after:{after_date} before:{before_date}"
+    print(f"  Gmailクエリ: {query}")
     messages = search_messages(gmail_service, query)
     if not messages:
-        print(f"未検出: {item_name} の請求メール ({sender})")
+        print(f"  未検出: {item_name} の請求メール ({after_date} 〜 {before_date})")
         return
 
     message_id = messages[0]["id"]
+    # 件名・日付をログに出して対象メールを明示する
+    detail = gmail_service.users().messages().get(userId="me", id=message_id, format="metadata",
+                                                   metadataHeaders=["Subject", "Date"]).execute()
+    headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
+    print(f"  取得メール: 件名=「{headers.get('Subject', '(不明)')}」 日付={headers.get('Date', '(不明)')}")
+
     body_text = get_message_text(gmail_service, message_id)
 
     amount_value = None
