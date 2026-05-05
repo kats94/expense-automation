@@ -304,8 +304,8 @@ def process_invoice(
         amount_value = str(int(jpy_amount))
         memo = f"JPY {int(jpy_amount)}"
 
-    update_fixed_cost_item(spreadsheet_id, sheet_name, values=load_sheet_data(spreadsheet_id, sheet_name), item_name=item_name, amount=amount_value, memo=memo, target_month=4)
-    print(f"{item_name} を {amount_value} 円で更新しました。")
+    update_fixed_cost_item(spreadsheet_id, sheet_name, values=load_sheet_data(spreadsheet_id, sheet_name), item_name=item_name, amount=amount_value, memo=memo, target_month=target_month)
+    print(f"{item_name} を {amount_value} 円で更新しました。({target_year}/{target_month:02d}, {memo})")
 
 
 if __name__ == "__main__":
