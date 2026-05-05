@@ -133,8 +133,9 @@ def main():
         },
     ]
 
-    target_month = 4
-    target_year = 2026
+    now = datetime.now()
+    target_month = now.month
+    target_year = now.year
 
     for invoice in items:
         try:
@@ -163,6 +164,9 @@ def main():
         {"name": "NIC（初回交流会込み）", "amount": "13000"},
     ]
 
+    # 固定費・ChatGPT 書き込み前にシートデータを再取得
+    values = load_sheet_data(spreadsheet_id, sheet_name)
+
     for item in fixed_amount_items:
         update_fixed_cost_item(
             spreadsheet_id,
@@ -170,7 +174,7 @@ def main():
             values,
             item["name"],
             item["amount"],
-            target_month=4,
+            target_month=target_month,
         )
 
     chatgpt_amount = str(round(22 * exchange_rate_12th))
@@ -182,7 +186,7 @@ def main():
         "ChatGPT",
         chatgpt_amount,
         chatgpt_memo,
-        target_month=4,
+        target_month=target_month,
     )
 
     print("固定費の自動入力が完了しました。")
