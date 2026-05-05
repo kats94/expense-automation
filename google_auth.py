@@ -18,6 +18,7 @@ def load_config():
             "spreadsheet_id": os.getenv("GOOGLE_SPREADSHEET_ID"),
             "expense_sheet_name": os.getenv("GOOGLE_EXPENSE_SHEET_NAME", "交際費（領収書系）まとめ"),
             "transit_sheet_name": os.getenv("GOOGLE_TRANSIT_SHEET_NAME", "交通費（電車） まとめ"),
+            "fixed_cost_sheet_name": os.getenv("GOOGLE_FIXED_COST_SHEET_NAME", "FY26 会計表"),
             "service_account_file": os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "./expense-automation-493207-678d0e3e8531.json"),
         },
         "google_maps": {
