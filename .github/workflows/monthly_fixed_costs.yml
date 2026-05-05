@@ -1,0 +1,36 @@
+name: Monthly Fixed Costs Entry
+
+on:
+  # 毎月28〜31日の23:59 JST（= 14:59 UTC）に実行
+  # run_monthly_fixed_costs.py 内で当日が月末かチェックして非月末日はスキップ
+  schedule:
+    - cron: "59 14 28-31 * *"
+  # 手動実行（テスト用）
+  workflow_dispatch:
+
+jobs:
+  run-fixed-costs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run monthly fixed costs
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          EXCHANGERATE_API_KEY: ${{ secrets.EXCHANGERATE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_TOKEN_JSON: ${{ secrets.GMAIL_TOKEN_JSON }}
+        run: python run_monthly_fixed_costs.py

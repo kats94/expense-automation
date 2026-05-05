@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -14,6 +15,14 @@ GMAIL_SCOPES = [
 
 
 def get_gmail_credentials():
+    # CI / GitHub Actions: 環境変数からトークン JSON を直接読み込む
+    token_json = os.getenv("GMAIL_TOKEN_JSON")
+    if token_json:
+        creds = Credentials.from_authorized_user_info(json.loads(token_json), GMAIL_SCOPES)
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        return creds
+
     config = load_config()
     gmail_config = config.get("gmail", {})
     credentials_file = gmail_config.get("credentials_file")
