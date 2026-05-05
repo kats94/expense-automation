@@ -24,13 +24,15 @@ def get_exchange_rate(api_key: str, base: str = "USD", target: str = "JPY", on_d
     return float(rate)
 
 
-def get_12th_exchange_rate(api_key: str, base: str = "USD", target: str = "JPY") -> float:
+def get_12th_exchange_rate(api_key: str, base: str = "USD", target: str = "JPY", year: int | None = None, month: int | None = None) -> float:
     today = datetime.now()
-    target_date = today.replace(day=12).strftime("%Y-%m-%d")
+    y = year if year is not None else today.year
+    m = month if month is not None else today.month
+    target_date = datetime(y, m, 12).strftime("%Y-%m-%d")
     try:
         return get_exchange_rate(api_key, base=base, target=target, on_date=target_date)
     except Exception as exc:
-        print(f"12日レートの取得に失敗しました: {exc}. 最新レートにフォールバックします。")
+        print(f"12日レートの取得に失敗しました ({target_date}): {exc}. 最新レートにフォールバックします。")
         return get_exchange_rate(api_key, base=base, target=target)
 
 
