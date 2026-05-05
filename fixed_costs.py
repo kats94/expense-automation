@@ -87,17 +87,16 @@ def build_row_for_item(item_name: str, month_index: int, amount: str, memo: str 
     return row
 
 
-def update_fixed_cost_item(spreadsheet_id: str, sheet_name: str, values: list[list[str]], item_name: str, amount: str, memo: str | None = None) -> None:
+def update_fixed_cost_item(spreadsheet_id: str, sheet_name: str, values: list[list[str]], item_name: str, amount: str, memo: str | None = None, target_month: int = 4) -> None:
     row_index = find_row_by_item(values, item_name)
-    current_month = datetime.now().month
-    column = month_column_letter(current_month)
+    column = month_column_letter(target_month)
     if row_index:
         updates = [{"range": f"'{sheet_name}'!{column}{row_index}", "values": [amount]}]
         if memo:
             updates.append({"range": f"'{sheet_name}'!N{row_index}", "values": [memo]})
         update_sheet_values(spreadsheet_id, updates)
     else:
-        row = build_row_for_item(item_name, current_month, amount, memo)
+        row = build_row_for_item(item_name, target_month, amount, memo)
         append_new_row(spreadsheet_id, sheet_name, row)
 
 
@@ -151,6 +150,7 @@ def main():
     print("メール自動取得処理を完了しました")
 
     fixed_amount_items = [
+        {"name": "メールサーバー費用", "amount": "1911"},
         {"name": "代理店交流会", "amount": "5500"},
         {"name": "PIC", "amount": "5500"},
         {"name": "NIC（初回交流会込み）", "amount": "13000"},
@@ -163,6 +163,7 @@ def main():
             values,
             item["name"],
             item["amount"],
+            target_month=4,
         )
 
     chatgpt_amount = str(round(22 * exchange_rate_12th))
@@ -174,6 +175,7 @@ def main():
         "ChatGPT",
         chatgpt_amount,
         chatgpt_memo,
+        target_month=4,
     )
 
     print("固定費の自動入力が完了しました。")
@@ -285,7 +287,7 @@ def process_invoice(
         amount_value = str(int(jpy_amount))
         memo = f"JPY {int(jpy_amount)}"
 
-    update_fixed_cost_item(spreadsheet_id, sheet_name, values=load_sheet_data(spreadsheet_id, sheet_name), item_name=item_name, amount=amount_value, memo=memo)
+    update_fixed_cost_item(spreadsheet_id, sheet_name, values=load_sheet_data(spreadsheet_id, sheet_name), item_name=item_name, amount=amount_value, memo=memo, target_month=4)
     print(f"{item_name} を {amount_value} 円で更新しました。")
 
 
